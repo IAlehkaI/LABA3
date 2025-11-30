@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Новостник{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#e6ecf7',
+                        accent: '#2563eb'
+                    },
+                    fontFamily: {
+                        logo: ['Pacifico', 'cursive'],
+                        sans: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .dropdown-menu { display: none; }
+        .dropdown:hover .dropdown-menu { display: block; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-primary min-h-screen flex flex-col">
+    <header class="bg-white shadow-sm border-b border-gray-200">
+        <div class="container mx-auto px-4 py-4 max-w-4xl flex items-center justify-between">
+            {% if request.url.path == '/' %}
+                <div class="flex-1 text-center">
+                    <a href="/" class="inline-block">
+                        <span class="text-4xl font-logo text-accent tracking-wide">Новостник</span>
+                    </a>
+                </div>
+            {% else %}
+                <div>
+                    <a href="/" class="inline-block">
+                        <span class="text-3xl font-logo text-accent">Новостник</span>
+                    </a>
+                </div>
+                <div class="flex-1"></div>
+            {% endif %}
+            <div></div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-8 max-w-4xl flex-1">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Кнопка "+" только для админа и только на главной -->
+    {% if current_user and current_user  current_user.role == 'admin' and request.url.path == '/' %}
+    <a href="/create"
+       class="fixed bottom-6 right-6 bg-accent text-white p-4 rounded-full shadow-2xl hover:bg-blue-700 transition transform hover:scale-110 z-50 text-2xl font-bold">
+        +
+    </a>
+    {% endif %}
+</body>
+</html>

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Добавить новость{% endblock %}
+{% block content %}
+<a href="/" class="text-accent hover:underline mb-4 inline-block">Назад</a>
+<h1 class="text-2xl font-bold text-gray-800 mb-6">Добавить новость</h1>
+<form method="post" enctype="multipart/form-data" class="space-y-4">
+  <div>
+    <label class="block text-gray-700 mb-1">Заголовок *</label>
+    <input type="text" name="title" required class="w-full p-2 border rounded">
+  </div>
+  <div>
+    <label class="block text-gray-700 mb-1">URL изображения (или загрузить ниже)</label>
+    <input type="text" name="image_url" placeholder="https://..." class="w-full p-2 border rounded">
+  </div>
+  <div>
+    <label class="block text-gray-700 mb-1">Или загрузить изображение</label>
+    <input type="file" name="image_file" accept="image/*" class="w-full p-2 border rounded">
+  </div>
+  <div>
+    <label class="block text-gray-700 mb-1">Автор *</label>
+    <input type="text" name="author" required class="w-full p-2 border rounded">
+  </div>
+  <div>
+    <label class="block text-gray-700 mb-1">Краткое содержание *</label>
+    <textarea name="summary" rows="3" required class="w-full p-2 border rounded"></textarea>
+  </div>
+  <div>
+    <label class="block text-gray-700 mb-1">Полный текст *</label>
+    <textarea name="content" rows="8" required class="w-full p-2 border rounded"></textarea>
+  </div>
+  <div>
+    <label class="block text-gray-700 mb-1">Теги (через запятую)</label>
+    <input type="text" name="tags" placeholder="новости, технологии" class="w-full p-2 border rounded">
+  </div>
+  <button type="submit" class="bg-accent text-white px-6 py-2 rounded hover:bg-blue-700">
+    Добавить новость
+  </button>
+</form>
+{% endblock %}

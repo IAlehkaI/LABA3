@@ -1,0 +1,51 @@
+// proto/news.proto — простой и рабочий для Python 3.11+ в 2025
+syntax = "proto3";
+
+package news;  // ← Твой package — правильно! Оставляем.
+
+service NewsService {
+  rpc ListNews (Empty) returns (NewsList);
+  rpc GetNews (NewsIdRequest) returns (News);
+  rpc CreateNews (NewsCreateRequest) returns (News);
+  rpc UpdateNews (NewsUpdateRequest) returns (News);
+  rpc DeleteNews (NewsIdRequest) returns (DeleteResponse);
+  rpc SearchNews (SearchRequest) returns (NewsList);
+}
+
+message Empty {}
+
+message News {
+  int64 id = 1;
+  string title = 2;
+  string author = 3;
+  string content = 4;
+  string summary = 5;
+  string image_url = 6;
+  repeated string tags = 7;
+  string created_at = 8;
+}
+
+message NewsList { repeated News items = 1; }
+message NewsIdRequest { int64 id = 1; }
+
+message NewsCreateRequest {
+  string title = 1;
+  string author = 2;
+  string content = 3;
+  string summary = 4;
+  string image_url = 5;
+  repeated string tags = 6;
+}
+
+message NewsUpdateRequest {
+  int64 id = 1;
+  optional string title = 2;
+  optional string author = 3;
+  optional string content = 4;
+  optional string summary = 5;
+  optional string image_url = 6;
+  repeated string tags = 7;
+}
+
+message SearchRequest { string query = 1; }
+message DeleteResponse { bool success = 1; string message = 2; }
