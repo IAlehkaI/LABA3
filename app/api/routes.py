@@ -11,6 +11,17 @@ from app.utils.s3 import upload_image_to_s3  # если используешь �
 from typing import Optional
 from app.api.auth import router as auth_router
 from app.api.news import router as news_router
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
+templates = Jinja2Templates(directory="templates")
+router = APIRouter()
+
+@router.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """Страница авторизации"""
+    return templates.TemplateResponse("login.html", {"request": request})
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -161,3 +172,8 @@ async def delete_news(
     if not success:
         raise HTTPException(status_code=404, detail="Новость не найдена")
     return RedirectResponse(url="/", status_code=303)
+
+@router.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """Страница авторизации"""
+    return templates.TemplateResponse("login.html", {"request": request})

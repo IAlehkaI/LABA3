@@ -13,6 +13,9 @@ from app.db.session import engine
 from app.db.base import Base
 from app.core.config import settings
 from app.utils.s3 import s3_client
+from app.api import routes
+
+app.include_router(routes.router)
 
 # Логи
 logging.basicConfig(level=logging.INFO)

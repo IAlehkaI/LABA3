@@ -16,12 +16,12 @@ def load_initial_data():
         admin = User(
             username="admin",
             email="admin@news.ru",
-            hashed_password=get_password_hash("admin123"),
+            hashed_password=get_password_hash("admin"),
             is_admin=True
         )
         db.add(admin)
         db.commit()
-        print("Создан админ: admin / admin123")
+        print("Создан админ: admin / admin")
 
     # === Загружаем новости, если их нет ===
     if db.query(News).count() == 0:
