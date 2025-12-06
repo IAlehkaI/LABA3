@@ -86,6 +86,7 @@
             localStorage.removeItem('token');
             localStorage.removeItem('username');
             localStorage.removeItem('role');
+            document.cookie = 'access_token=; path=/; max-age=0';
             alert('✅ Вы вышли из системы');
             window.location.href = '/';
         }
@@ -106,6 +107,7 @@
                     </a>
                 `;
                 profileIcon.style.visibility = 'hidden';
+                contentControls.innerHTML = '';
                 return;
             }
 
@@ -115,9 +117,13 @@
 
                 if (Date.now() > expiry) {
                     localStorage.clear();
+                    document.cookie = 'access_token=; path=/; max-age=0';
                     window.location.reload();
                     return;
                 }
+
+                // Синхронизируем токен в cookies
+                document.cookie = `access_token=${token}; path=/; max-age=86400; SameSite=Lax`;
 
                 window.currentUser = { username, role, token };
 
@@ -153,11 +159,34 @@
             } catch (e) {
                 console.error('Ошибка декодирования токена:', e);
                 localStorage.clear();
+                document.cookie = 'access_token=; path=/; max-age=0';
                 window.location.reload();
             }
         }
 
+        // Запускаем сразу при загрузке
         window.addEventListener('load', updateUserInterface);
+
+        // НОВОЕ: Запускаем каждые 100мс в течение первых 2 секунд
+        // Это обеспечит быстрое обновление после перенаправления с /login
+        let checkCount = 0;
+        const quickCheck = setInterval(() => {
+            updateUserInterface();
+            checkCount++;
+            if (checkCount > 20) { // 20 * 100ms = 2 секунды
+                clearInterval(quickCheck);
+            }
+        }, 100);
+
+        // НОВОЕ: Обработчик события storage для синхронизации между вкладками
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'token' || e.key === 'username' || e.key === 'role') {
+                updateUserInterface();
+            }
+        });
+
+        // НОВОЕ: Глобальная функция для принудительного обновления
+        window.forceUpdateUI = updateUserInterface;
     </script>
 </body>
 </html>

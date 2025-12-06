@@ -1,52 +1,42 @@
 # app/schemas/news.py
-# Pydantic-схемы — валидация входных и выходных данных
-
-from pydantic import BaseModel, Field, HttpUrl, constr
-from typing import List, Optional
+from pydantic import BaseModel, HttpUrl, Field
+from typing import Optional, List
 from datetime import datetime
 
 
 class NewsBase(BaseModel):
-    title: constr(min_length=5, max_length=200) = Field(..., description="Заголовок новости")
-    author: constr(min_length=2, max_length=100) = Field(..., description="Автор")
-    summary: constr(min_length=50, max_length=500) = Field(..., description="Краткое содержание")
-    content: constr(min_length=100) = Field(..., description="Полный текст новости")
-    image_url: Optional[HttpUrl] = Field(None, description="Прямая ссылка на картинку (если есть)")
-    tags: List[str] = Field(default_factory=list, description="Теги через запятую")
+    title: str = Field(..., min_length=3, max_length=200)
+    image_url: Optional[HttpUrl] = None
+    author: str = Field(..., min_length=2, max_length=100)
+    summary: str = Field(..., min_length=10, max_length=500)
+    content: str = Field(..., min_length=20)
+    tags: Optional[List[str]] = []
 
 
 class NewsCreate(NewsBase):
-    """Для создания новости — всё, что принимает клиент"""
     pass
 
 
-class NewsUpdate(NewsBase):
-    """Для обновления — все поля опциональные"""
-    title: Optional[constr(min_length=5, max_length=200)] = None
-    author: Optional[constr(min_length=2, max_length=100)] = None
-    summary: Optional[constr(min_length=50, max_length=500)] = None
-    content: Optional[constr(min_length=100)] = None
+class NewsUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=3, max_length=200)
     image_url: Optional[HttpUrl] = None
+    author: Optional[str] = Field(None, min_length=2, max_length=100)
+    summary: Optional[str] = Field(None, min_length=10, max_length=500)
+    content: Optional[str] = Field(None, min_length=20)
     tags: Optional[List[str]] = None
-
-    class Config:
-        extra = "forbid"  # запрещаем лишние поля
 
 
 class NewsResponse(NewsBase):
-    """То, что отдаём наружу (в API и в шаблоны)"""
     id: int
     created_at: datetime
-    tags: List[str] = []  # всегда список, даже если пустой
+    updated_at: datetime
 
     class Config:
-        from_attributes = True  # чтобы можно было делать NewsResponse.from_orm(db_news)
-        json_encoders = {
-            datetime: lambda v: v.isoformat()  # красивая дата в JSON
-        }
+        from_attributes = True
 
-
-# Удобная штука для веб-форм (когда не хочется делать отдельную схему)
-class NewsInDB(NewsResponse):
-    """Внутренняя схема — если нужно отдать что-то ещё (например, для отладки)"""
-    pass
+    # Добавляем валидатор для конвертации строки в HttpUrl при чтении
+    @classmethod
+    def model_validate(cls, obj):
+        if hasattr(obj, 'image_url') and isinstance(obj.image_url, str):
+            obj.image_url = HttpUrl(obj.image_url) if obj.image_url else None
+        return super().model_validate(obj)

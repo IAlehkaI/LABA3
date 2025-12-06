@@ -1,7 +1,7 @@
-# app/main.py — с middleware для авторизации из cookies/headers
+# app/main.py — УПРОЩЁННАЯ ВЕРСИЯ БЕЗ MIDDLEWARE
 import threading
 import logging
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -31,35 +31,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# === MIDDLEWARE ДЛЯ АВТОРИЗАЦИИ ИЗ COOKIES ===
-@app.middleware("http")
-async def auth_middleware(request: Request, call_next):
-    """
-    Автоматически добавляет токен из cookies в заголовок Authorization
-    """
-    token = request.cookies.get("access_token")
-    if token and not request.headers.get("Authorization"):
-        # Создаём новый scope с добавленным заголовком
-        headers = dict(request.headers)
-        headers["authorization"] = f"Bearer {token}"
-        request._headers = headers
-
-    response = await call_next(request)
-    return response
-
-
 app.include_router(web_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
-
 
 def run_grpc_server():
     try:
         serve_grpc()
     except Exception as e:
         logger.error(f"gRPC сервер упал: {e}")
-
 
 @app.on_event("startup")
 async def on_startup():
@@ -82,21 +62,17 @@ async def on_startup():
     load_initial_data()
     logger.info("Приложение полностью готово!")
 
-
 @app.on_event("shutdown")
 async def on_shutdown():
     logger.info("Остановка приложения...")
 
-
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
 
 from app.core.security import create_access_token
 
-
 @app.get("/get-token")
 async def get_token():
-    token = create_access_token({"sub": "admin", "is_admin": True})
+    token = create_access_token({"sub": "admin", "role": "admin", "user_id": 1})
     return {"access_token": token, "token_type": "bearer"}

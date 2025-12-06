@@ -139,6 +139,20 @@
         .back-link a:hover {
             text-decoration: underline;
         }
+        .register-link {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 14px;
+            color: #666;
+        }
+        .register-link a {
+            color: #667eea;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .register-link a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -165,12 +179,11 @@
                 Войти
             </button>
         </form>
-        <div class="text-center mt-4">
-            <p class="text-sm text-gray-600">
-                Нет аккаунта?
-                <a href="/register" class="text-accent font-semibold hover:underline">Зарегистрироваться</a>
-            </p>
+
+        <div class="register-link">
+            <p>Нет аккаунта? <a href="/register">Зарегистрироваться</a></p>
         </div>
+
         <div class="test-credentials">
             <h3>📋 Тестовые аккаунты:</h3>
 
@@ -214,9 +227,6 @@
         function showAlert(message, type) {
             alertBox.textContent = message;
             alertBox.className = `alert alert-${type} show`;
-            setTimeout(() => {
-                alertBox.classList.remove('show');
-            }, 5000);
         }
 
         loginForm.addEventListener('submit', async (e) => {
@@ -224,6 +234,11 @@
 
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
+
+            if (!username || !password) {
+                showAlert('❌ Заполните все поля', 'error');
+                return;
+            }
 
             loginBtn.disabled = true;
             loginBtn.textContent = 'Входим...';
@@ -240,16 +255,20 @@
                 if (response.ok) {
                     const data = await response.json();
 
-                    // Сохраняем токен, имя и роль
+                    // Сохраняем в localStorage
                     localStorage.setItem('token', data.access_token);
                     localStorage.setItem('username', data.username);
                     localStorage.setItem('role', data.role);
 
+                    // Сохраняем токен в cookies
+                    document.cookie = `access_token=${data.access_token}; path=/; max-age=86400; SameSite=Lax`;
+
                     showAlert(`✅ Добро пожаловать, ${data.username}!`, 'success');
 
+                    // Немедленное перенаправление
                     setTimeout(() => {
                         window.location.href = '/';
-                    }, 1000);
+                    }, 500);
                 } else {
                     const error = await response.json();
                     showAlert('❌ ' + (error.detail || 'Неверный логин или пароль'), 'error');
@@ -257,39 +276,32 @@
                     loginBtn.textContent = 'Войти';
                 }
             } catch (error) {
+                console.error('Ошибка авторизации:', error);
                 showAlert('❌ Ошибка соединения с сервером', 'error');
                 loginBtn.disabled = false;
                 loginBtn.textContent = 'Войти';
             }
         });
 
-        // Проверяем, авторизован ли уже пользователь
         window.addEventListener('load', () => {
             const token = localStorage.getItem('token');
             if (token) {
-                showAlert('Вы уже авторизованы. Перенаправление...', 'success');
-                setTimeout(() => {
-                    window.location.href = '/';
-                }, 1500);
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    const expiry = payload.exp * 1000;
+
+                    if (Date.now() < expiry) {
+                        window.location.href = '/';
+                    } else {
+                        localStorage.clear();
+                        document.cookie = 'access_token=; path=/; max-age=0';
+                    }
+                } catch (e) {
+                    console.error('Ошибка проверки токена:', e);
+                }
             }
         });
-        if (response.ok) {
-            const data = await response.json();
-
-            // Сохраняем в localStorage
-            localStorage.setItem('token', data.access_token);
-            localStorage.setItem('username', data.username);
-            localStorage.setItem('role', data.role);
-
-            // НОВОЕ: Сохраняем токен в cookies для автоматической авторизации форм
-            document.cookie = `access_token=${data.access_token}; path=/; max-age=86400; SameSite=Lax`;
-
-            showAlert(`✅ Добро пожаловать, ${data.username}!`, 'success');
-
-            setTimeout(() => {
-                window.location.href = '/';
-            }, 1000);
-        }
     </script>
+
 </body>
 </html>

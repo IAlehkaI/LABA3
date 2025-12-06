@@ -1,78 +1,72 @@
-# app/crud/news.py
-# Здесь только «сырые» операции с базой — без кэша и бизнес-логики
-
+# app/crud/news.py — ИСПРАВЛЕННАЯ ВЕРСИЯ
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, desc
-from typing import List, Optional
-
-from app.models.news import News as NewsModel
+from app.models.news import News
 from app.schemas.news import NewsCreate, NewsUpdate
+from typing import Optional
 
 
-async def get_all(db: Session, skip: int = 0, limit: int = 100) -> List[NewsModel]:
-    """Все новости, отсортированные по дате (новые сверху)"""
-    return (
-        db.query(NewsModel)
-        .order_by(desc(NewsModel.created_at))
-        .offset(skip)
-        .limit(limit)
-        .all()
+def create(db: Session, news_in: NewsCreate) -> News:
+    """Создание новости"""
+    db_news = News(
+        title=news_in.title,
+        image_url=str(news_in.image_url) if news_in.image_url else None,  # Конвертируем в строку
+        author=news_in.author,
+        summary=news_in.summary,
+        content=news_in.content,
+        tags=news_in.tags or []
     )
-
-
-async def get_by_id(db: Session, news_id: int) -> Optional[NewsModel]:
-    """Получаем одну новость по id"""
-    return db.query(NewsModel).filter(NewsModel.id == news_id).first()
-
-
-async def create(db: Session, news_in: NewsCreate) -> NewsModel:
-    """Создаём новость в БД"""
-    db_news = NewsModel(**news_in.model_dump(exclude_unset=True))
     db.add(db_news)
     db.commit()
     db.refresh(db_news)
     return db_news
 
 
-async def update(db: Session, news_id: int, news_in: NewsUpdate) -> Optional[NewsModel]:
-    """Обновляем существующую новость"""
-    db_news = db.query(NewsModel).filter(NewsModel.id == news_id).first()
+def get_all(db: Session):
+    """Получить все новости"""
+    return db.query(News).all()
+
+
+def get_by_id(db: Session, news_id: int) -> Optional[News]:
+    """Получить новость по ID"""
+    return db.query(News).filter(News.id == news_id).first()
+
+
+def search(db: Session, query: str):
+    """Поиск новостей"""
+    search_pattern = f"%{query}%"
+    return db.query(News).filter(
+        (News.title.ilike(search_pattern)) |
+        (News.content.ilike(search_pattern)) |
+        (News.summary.ilike(search_pattern))
+    ).all()
+
+
+def update(db: Session, news_id: int, news_in: NewsUpdate) -> bool:
+    """Обновление новости"""
+    db_news = db.query(News).filter(News.id == news_id).first()
     if not db_news:
-        return None
+        return False
 
     update_data = news_in.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(db_news, key, value)
+
+    # Конвертируем HttpUrl в строку
+    if 'image_url' in update_data and update_data['image_url'] is not None:
+        update_data['image_url'] = str(update_data['image_url'])
+
+    for field, value in update_data.items():
+        setattr(db_news, field, value)
 
     db.commit()
     db.refresh(db_news)
-    return db_news
+    return True
 
 
-async def delete(db: Session, news_id: int) -> bool:
-    """Удаляем новость"""
-    db_news = db.query(NewsModel).filter(NewsModel.id == news_id).first()
+def delete(db: Session, news_id: int) -> bool:
+    """Удаление новости"""
+    db_news = db.query(News).filter(News.id == news_id).first()
     if not db_news:
         return False
 
     db.delete(db_news)
     db.commit()
     return True
-
-
-async def search(db: Session, query: str) -> List[NewsModel]:
-    """Поиск по заголовку, автору, краткому содержанию и тексту"""
-    search = f"%{query.lower()}%"
-    return (
-        db.query(NewsModel)
-        .filter(
-            or_(
-                NewsModel.title.ilike(search),
-                NewsModel.author.ilike(search),
-                NewsModel.summary.ilike(search),
-                NewsModel.content.ilike(search),
-            )
-        )
-        .order_by(desc(NewsModel.created_at))
-        .all()
-    )
