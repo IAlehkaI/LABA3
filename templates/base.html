@@ -48,18 +48,26 @@
             {% endif %}
 
             <!-- Меню пользователя -->
-            <div class="flex items-center gap-4">
-                <div id="user-menu">
+            <div class="flex items-center gap-3">
+                <div id="user-menu" class="flex items-center gap-3">
+                    <!-- Серверный рендеринг (если пользователь авторизован через backend) -->
                     {% if current_user and current_user.username != 'anonymous' %}
-                        <span class="text-sm text-gray-600">
+                        <span class="text-sm text-gray-700 font-medium">
                             👤 {{ current_user.username }}
                             {% if current_user.is_admin %}
-                                <span class="ml-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">admin</span>
+                                <span class="ml-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold">ADMIN</span>
                             {% endif %}
                         </span>
-                        <button onclick="logout()" class="ml-3 text-sm text-red-600 hover:text-red-800">Выйти</button>
+                        <button onclick="logout()"
+                                class="px-3 py-1.5 text-sm text-white bg-red-500 hover:bg-red-600 rounded transition">
+                            Выйти
+                        </button>
                     {% else %}
-                        <a href="/login" class="text-sm text-accent hover:text-blue-800 font-medium">Войти</a>
+                        <!-- Для анонимов - будет заменено через JS если есть токен -->
+                        <a href="/login"
+                           class="px-4 py-1.5 text-sm text-white bg-accent hover:bg-blue-700 rounded font-medium transition">
+                            Войти
+                        </a>
                     {% endif %}
                 </div>
             </div>
@@ -73,43 +81,65 @@
     <!-- Кнопка "+" только для админа и только на главной -->
     {% if current_user and current_user.role == 'admin' and request.url.path == '/' %}
     <a href="/create"
-       class="fixed bottom-6 right-6 bg-accent text-white p-4 rounded-full shadow-2xl hover:bg-blue-700 transition transform hover:scale-110 z-50 text-2xl font-bold">
+       class="fixed bottom-6 right-6 bg-accent text-white w-14 h-14 rounded-full shadow-2xl hover:bg-blue-700 transition transform hover:scale-110 z-50 flex items-center justify-center text-3xl font-bold">
         +
     </a>
     {% endif %}
 
     <script>
-        // Функция выхода
+        // Функция выхода из профиля
         function logout() {
+            // Удаляем токен и данные пользователя из localStorage
             localStorage.removeItem('token');
             localStorage.removeItem('username');
+
+            // Показываем уведомление
+            alert('✅ Вы вышли из системы');
+
+            // Перенаправляем на главную страницу
             window.location.href = '/';
         }
 
-        // Автоматическая подстановка имени пользователя из localStorage
+        // Автоматическая авторизация из localStorage при загрузке страницы
         window.addEventListener('load', () => {
             const token = localStorage.getItem('token');
             const username = localStorage.getItem('username');
 
+            // Если токен есть и пользователь не показан через серверный рендеринг
             if (token && username) {
-                // Декодируем токен, чтобы проверить роль
                 try {
+                    // Декодируем токен чтобы узнать роль
                     const payload = JSON.parse(atob(token.split('.')[1]));
                     const isAdmin = payload.is_admin || false;
 
-                    // Обновляем меню, если пользователь не показан в серверном рендеринге
+                    // Проверяем, не истёк ли токен
+                    const expiry = payload.exp * 1000; // конвертируем в миллисекунды
+                    if (Date.now() > expiry) {
+                        // Токен истёк - удаляем
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('username');
+                        return;
+                    }
+
+                    // Обновляем меню только если там кнопка "Войти"
                     const userMenu = document.getElementById('user-menu');
                     if (userMenu && userMenu.textContent.includes('Войти')) {
                         userMenu.innerHTML = `
-                            <span class="text-sm text-gray-600">
+                            <span class="text-sm text-gray-700 font-medium">
                                 👤 ${username}
-                                ${isAdmin ? '<span class="ml-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">admin</span>' : ''}
+                                ${isAdmin ? '<span class="ml-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold">ADMIN</span>' : ''}
                             </span>
-                            <button onclick="logout()" class="ml-3 text-sm text-red-600 hover:text-red-800">Выйти</button>
+                            <button onclick="logout()"
+                                    class="px-3 py-1.5 text-sm text-white bg-red-500 hover:bg-red-600 rounded transition">
+                                Выйти
+                            </button>
                         `;
                     }
                 } catch (e) {
-                    console.error('Ошибка декодирования токена', e);
+                    console.error('Ошибка декодирования токена:', e);
+                    // Токен повреждён - удаляем
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('username');
                 }
             }
         });

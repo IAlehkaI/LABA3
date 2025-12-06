@@ -1,4 +1,4 @@
-# app/main.py — ФИНАЛЬНЫЙ РАБОЧИЙ ВАРИАНТ (30 ноября 2025)
+# app/main.py — ФИНАЛЬНЫЙ РАБОЧИЙ ВАРИАНТ (обновлено 6 декабря 2025)
 import threading
 import logging
 from fastapi import FastAPI, Request
@@ -8,12 +8,11 @@ from fastapi.templating import Jinja2Templates
 
 from app.init_data import load_initial_data
 from app.api.routes import router as web_router
-from app.grpc.server import serve_grpc  # ← gRPC сервер
+from app.grpc.server import serve_grpc
 from app.db.session import engine
 from app.db.base import Base
 from app.core.config import settings
 from app.utils.s3 import s3_client
-from app.api import routes
 
 # Логи
 logging.basicConfig(level=logging.INFO)
@@ -26,7 +25,7 @@ app = FastAPI(
     version="3.0.0",
 )
 
-# CORS (на всякий случай)
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,25 +39,14 @@ app.include_router(web_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# Глобальная переменная для текущего пользователя (для шаблонов)
-@app.middleware("http")
-async def add_current_user(request: Request, call_next):
-    user = None
-    auth = request.headers.get("Authorization")
-    if auth and auth.startswith("Bearer "):
-        from app.core.security import decode_access_token
-        token = auth.split(" ")[1]
-        payload = decode_access_token(token)
-        if payload:
-            user = type("obj", (object,), payload)  # имитируем объект пользователя
-    request.state.user = user
-    response = await call_next(request)
-    return response
+# ====================================================================
+# MIDDLEWARE add_current_user УДАЛЁН - теперь авторизация через Depends
+# ====================================================================
 
-# === Запуск gRPC в отдельном потоке (чтобы не блокировать asyncio) ===
+# === Запуск gRPC в отдельном потоке ===
 def run_grpc_server():
     try:
-        serve_grpc()  # из app/grpc/server.py
+        serve_grpc()
     except Exception as e:
         logger.error(f"gRPC сервер упал: {e}")
 
@@ -84,10 +72,14 @@ async def on_startup():
     grpc_thread.start()
     logger.info("gRPC-сервер запущен на порту 50051")
 
-    from app.init_data import load_initial_data
+    # 4. Загружаем начальные данные (админ, тестовые новости)
     load_initial_data()
 
     logger.info("Приложение полностью готово!")
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    logger.info("Остановка приложения...")
 
 # Для локального запуска через uvicorn
 if __name__ == "__main__":
@@ -99,5 +91,6 @@ from app.core.security import create_access_token
 
 @app.get("/get-token")
 async def get_token():
+    """Временный эндпоинт для быстрого получения токена админа"""
     token = create_access_token({"sub": "admin", "is_admin": True})
     return {"access_token": token, "token_type": "bearer"}

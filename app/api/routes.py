@@ -1,4 +1,4 @@
-# app/api/routes.py - НАЧАЛО ФАЙЛА
+# app/api/routes.py - ОБНОВЛЁННАЯ ВЕРСИЯ
 
 from fastapi import APIRouter, Request, Form, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -21,19 +21,18 @@ from app.api.news import router as news_router
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
-
 router.include_router(auth_router)
 router.include_router(news_router, prefix="/api/news", tags=["news"])
 
 
+# Хелпер для красивой даты в шаблонах
 def format_date(dt_obj) -> str:
-    """Форматирование datetime объекта в красивую строку"""
-    from datetime import datetime
-
-    # Если пришла строка - парсим
+    """
+    Форматирование datetime в красивую строку.
+    Поддерживает как строки ISO, так и объекты datetime.
+    """
     if isinstance(dt_obj, str):
         dt = datetime.fromisoformat(dt_obj.replace("Z", "+00:00"))
-    # Если уже datetime - используем как есть
     else:
         dt = dt_obj
 
@@ -49,10 +48,10 @@ templates.env.globals["format_date"] = format_date
 
 @router.get("/", response_class=HTMLResponse)
 async def home(
-    request: Request,
-    q: Optional[str] = None,
-    db: Session = Depends(get_db),  # ← ДОБАВЛЕНО
-    current_user: Union[TokenData, AnonymousUser] = Depends(get_current_user_optional),
+        request: Request,
+        q: Optional[str] = None,
+        db: Session = Depends(get_db),
+        current_user: Union[TokenData, AnonymousUser] = Depends(get_current_user_optional),
 ):
     """Главная страница - доступна всем, включая анонимов"""
     search_query = (q or "").strip()
@@ -66,16 +65,16 @@ async def home(
         "top_news": top_news,
         "news_list": news_list,
         "search_query": search_query,
-        "current_user": current_user,
+        "current_user": current_user,  # ← ВАЖНО: передаём пользователя
     })
 
 
 @router.get("/news/{news_id}", response_class=HTMLResponse)
 async def news_detail(
-    request: Request,
-    news_id: int,
-    db: Session = Depends(get_db),  # ← ДОБАВЛЕНО
-    current_user: Union[TokenData, AnonymousUser] = Depends(get_current_user_optional)
+        request: Request,
+        news_id: int,
+        db: Session = Depends(get_db),
+        current_user: Union[TokenData, AnonymousUser] = Depends(get_current_user_optional)
 ):
     """Детали новости - доступны всем"""
     news = await news_service.get_by_id(db, news_id)
@@ -85,7 +84,7 @@ async def news_detail(
     return templates.TemplateResponse("news_detail.html", {
         "request": request,
         "news": news,
-        "current_user": current_user,
+        "current_user": current_user,  # ← ВАЖНО: передаём пользователя
     })
 
 
@@ -93,28 +92,28 @@ async def news_detail(
 
 @router.get("/create", response_class=HTMLResponse)
 async def create_form(
-    request: Request,
-    current_user: TokenData = Depends(require_admin)
+        request: Request,
+        current_user: TokenData = Depends(require_admin)
 ):
     """Форма создания новости - только для админов"""
     return templates.TemplateResponse("create.html", {
         "request": request,
-        "current_user": current_user
+        "current_user": current_user  # ← ВАЖНО: передаём пользователя
     })
 
 
 @router.post("/create")
 async def create_news(
-    request: Request,
-    title: str = Form(...),
-    author: str = Form(...),
-    summary: str = Form(...),
-    content: str = Form(...),
-    image_url: Optional[str] = Form(""),
-    image_file: Optional[UploadFile] = File(None),
-    tags: Optional[str] = Form(""),
-    db: Session = Depends(get_db),  # ← ДОБАВЛЕНО
-    current_user: TokenData = Depends(require_admin),
+        request: Request,
+        title: str = Form(...),
+        author: str = Form(...),
+        summary: str = Form(...),
+        content: str = Form(...),
+        image_url: Optional[str] = Form(""),
+        image_file: Optional[UploadFile] = File(None),
+        tags: Optional[str] = Form(""),
+        db: Session = Depends(get_db),
+        current_user: TokenData = Depends(require_admin),
 ):
     """Создание новости - только для админов"""
     final_image_url = image_url
@@ -137,10 +136,10 @@ async def create_news(
 
 @router.get("/edit/{news_id}", response_class=HTMLResponse)
 async def edit_form(
-    request: Request,
-    news_id: int,
-    db: Session = Depends(get_db),  # ← ДОБАВЛЕНО
-    current_user: TokenData = Depends(require_admin),
+        request: Request,
+        news_id: int,
+        db: Session = Depends(get_db),
+        current_user: TokenData = Depends(require_admin),
 ):
     """Форма редактирования - только для админов"""
     news = await news_service.get_by_id(db, news_id)
@@ -153,22 +152,22 @@ async def edit_form(
         "request": request,
         "news": news,
         "tags_str": tags_str,
-        "current_user": current_user,
+        "current_user": current_user,  # ← ВАЖНО: передаём пользователя
     })
 
 
 @router.post("/edit/{news_id}")
 async def update_news(
-    news_id: int,
-    title: str = Form(...),
-    author: str = Form(...),
-    summary: str = Form(...),
-    content: str = Form(...),
-    image_url: Optional[str] = Form(""),
-    image_file: Optional[UploadFile] = File(None),
-    tags: Optional[str] = Form(""),
-    db: Session = Depends(get_db),  # ← ДОБАВЛЕНО
-    current_user: TokenData = Depends(require_admin),
+        news_id: int,
+        title: str = Form(...),
+        author: str = Form(...),
+        summary: str = Form(...),
+        content: str = Form(...),
+        image_url: Optional[str] = Form(""),
+        image_file: Optional[UploadFile] = File(None),
+        tags: Optional[str] = Form(""),
+        db: Session = Depends(get_db),
+        current_user: TokenData = Depends(require_admin),
 ):
     """Обновление новости - только для админов"""
     final_image_url = image_url
@@ -194,9 +193,9 @@ async def update_news(
 
 @router.post("/delete/{news_id}")
 async def delete_news(
-    news_id: int,
-    db: Session = Depends(get_db),  # ← ДОБАВЛЕНО
-    current_user: TokenData = Depends(require_admin),
+        news_id: int,
+        db: Session = Depends(get_db),
+        current_user: TokenData = Depends(require_admin),
 ):
     """Удаление новости - только для админов"""
     success = await news_service.delete(db, news_id)
@@ -210,3 +209,30 @@ async def delete_news(
 async def login_page(request: Request):
     """Страница авторизации"""
     return templates.TemplateResponse("login.html", {"request": request})
+
+
+# === ВЫХОД ИЗ СИСТЕМЫ ===
+@router.get("/logout", response_class=HTMLResponse)
+async def logout_page(request: Request):
+    """Страница выхода из системы"""
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <title>Выход</title>
+        <script>
+            localStorage.removeItem('token');
+            localStorage.removeItem('username');
+            alert('✅ Вы вышли из системы');
+            window.location.href = '/';
+        </script>
+    </head>
+    <body>
+        <p style="text-align: center; padding: 50px; font-family: Arial;">
+            Выход из системы...
+        </p>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
