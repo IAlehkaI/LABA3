@@ -1,4 +1,4 @@
-# app/main.py — ФИНАЛЬНЫЙ РАБОЧИЙ ВАРИАНТ (обновлено 6 декабря 2025)
+# app/main.py — с middleware для авторизации из cookies/headers
 import threading
 import logging
 from fastapi import FastAPI, Request
@@ -14,18 +14,15 @@ from app.db.base import Base
 from app.core.config import settings
 from app.utils.s3 import s3_client
 
-# Логи
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# FastAPI приложение
 app = FastAPI(
     title="Новостник 2025",
     description="Полноценный новостной сервис с REST + gRPC + S3 + Redis + ролями",
     version="3.0.0",
 )
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,31 +31,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Подключаем роуты и статику
+
+# === MIDDLEWARE ДЛЯ АВТОРИЗАЦИИ ИЗ COOKIES ===
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    """
+    Автоматически добавляет токен из cookies в заголовок Authorization
+    """
+    token = request.cookies.get("access_token")
+    if token and not request.headers.get("Authorization"):
+        # Создаём новый scope с добавленным заголовком
+        headers = dict(request.headers)
+        headers["authorization"] = f"Bearer {token}"
+        request._headers = headers
+
+    response = await call_next(request)
+    return response
+
+
 app.include_router(web_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# ====================================================================
-# MIDDLEWARE add_current_user УДАЛЁН - теперь авторизация через Depends
-# ====================================================================
 
-# === Запуск gRPC в отдельном потоке ===
 def run_grpc_server():
     try:
         serve_grpc()
     except Exception as e:
         logger.error(f"gRPC сервер упал: {e}")
 
+
 @app.on_event("startup")
 async def on_startup():
     logger.info("Запуск приложения...")
-
-    # 1. Создаём таблицы
     Base.metadata.create_all(bind=engine)
     logger.info("Таблицы БД созданы/обновлены")
 
-    # 2. Создаём бакет в MinIO
     try:
         s3_client.create_bucket(Bucket=settings.S3_BUCKET)
         logger.info(f"Бакет {settings.S3_BUCKET} создан")
@@ -67,30 +75,28 @@ async def on_startup():
     except Exception as e:
         logger.warning(f"Не удалось создать бакет: {e}")
 
-    # 3. Запускаем gRPC в отдельном потоке
     grpc_thread = threading.Thread(target=run_grpc_server, daemon=True)
     grpc_thread.start()
     logger.info("gRPC-сервер запущен на порту 50051")
 
-    # 4. Загружаем начальные данные (админ, тестовые новости)
     load_initial_data()
-
     logger.info("Приложение полностью готово!")
+
 
 @app.on_event("shutdown")
 async def on_shutdown():
     logger.info("Остановка приложения...")
 
-# Для локального запуска через uvicorn
+
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
 
-# ВРЕМЕННЫЙ ЭНДПОИНТ — ТОЛЬКО ДЛЯ ТЕСТА И СДАЧИ!
 from app.core.security import create_access_token
+
 
 @app.get("/get-token")
 async def get_token():
-    """Временный эндпоинт для быстрого получения токена админа"""
     token = create_access_token({"sub": "admin", "is_admin": True})
     return {"access_token": token, "token_type": "bearer"}

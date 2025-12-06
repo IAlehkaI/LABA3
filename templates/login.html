@@ -273,6 +273,23 @@
                 }, 1500);
             }
         });
+        if (response.ok) {
+            const data = await response.json();
+
+            // Сохраняем в localStorage
+            localStorage.setItem('token', data.access_token);
+            localStorage.setItem('username', data.username);
+            localStorage.setItem('role', data.role);
+
+            // НОВОЕ: Сохраняем токен в cookies для автоматической авторизации форм
+            document.cookie = `access_token=${data.access_token}; path=/; max-age=86400; SameSite=Lax`;
+
+            showAlert(`✅ Добро пожаловать, ${data.username}!`, 'success');
+
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 1000);
+        }
     </script>
 </body>
 </html>
