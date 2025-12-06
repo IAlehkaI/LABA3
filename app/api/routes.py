@@ -1,4 +1,4 @@
-# app/api/routes.py - ОБНОВЛЁННАЯ ВЕРСИЯ
+# app/api/routes.py — ПОЛНАЯ ВЕРСИЯ С 4 РОЛЯМИ
 
 from fastapi import APIRouter, Request, Form, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -9,8 +9,10 @@ from app.services.news_service import news_service
 from app.db.session import get_db
 from app.core.security import (
     get_current_user_optional,
+    get_current_user,
+    require_author,
     require_admin,
-    TokenData,
+    AuthenticatedUser,
     AnonymousUser
 )
 from app.utils.s3 import upload_image_to_s3
@@ -27,10 +29,6 @@ router.include_router(news_router, prefix="/api/news", tags=["news"])
 
 # Хелпер для красивой даты в шаблонах
 def format_date(dt_obj) -> str:
-    """
-    Форматирование datetime в красивую строку.
-    Поддерживает как строки ISO, так и объекты datetime.
-    """
     if isinstance(dt_obj, str):
         dt = datetime.fromisoformat(dt_obj.replace("Z", "+00:00"))
     else:
@@ -44,16 +42,16 @@ def format_date(dt_obj) -> str:
 templates.env.globals["format_date"] = format_date
 
 
-# === ВЕБ-ЧАСТЬ (ДОСТУПНА АНОНИМАМ) ===
+# === ПУБЛИЧНЫЕ ЭНДПОИНТЫ (ДОСТУПНЫ АНОНИМАМ) ===
 
 @router.get("/", response_class=HTMLResponse)
 async def home(
         request: Request,
         q: Optional[str] = None,
         db: Session = Depends(get_db),
-        current_user: Union[TokenData, AnonymousUser] = Depends(get_current_user_optional),
+        current_user: Union[AuthenticatedUser, AnonymousUser] = Depends(get_current_user_optional),
 ):
-    """Главная страница - доступна всем, включая анонимов"""
+    """Главная страница - доступна всем"""
     search_query = (q or "").strip()
     news_list = await news_service.search(db, search_query) if search_query else await news_service.get_all(db)
 
@@ -65,7 +63,7 @@ async def home(
         "top_news": top_news,
         "news_list": news_list,
         "search_query": search_query,
-        "current_user": current_user,  # ← ВАЖНО: передаём пользователя
+        "current_user": current_user,
     })
 
 
@@ -74,7 +72,7 @@ async def news_detail(
         request: Request,
         news_id: int,
         db: Session = Depends(get_db),
-        current_user: Union[TokenData, AnonymousUser] = Depends(get_current_user_optional)
+        current_user: Union[AuthenticatedUser, AnonymousUser] = Depends(get_current_user_optional)
 ):
     """Детали новости - доступны всем"""
     news = await news_service.get_by_id(db, news_id)
@@ -84,21 +82,54 @@ async def news_detail(
     return templates.TemplateResponse("news_detail.html", {
         "request": request,
         "news": news,
-        "current_user": current_user,  # ← ВАЖНО: передаём пользователя
+        "current_user": current_user,
     })
 
 
-# === ТОЛЬКО ДЛЯ АДМИНИСТРАТОРОВ ===
+# === СТРАНИЦЫ АВТОРИЗАЦИИ ===
+
+@router.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """Страница авторизации"""
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
+@router.get("/logout", response_class=HTMLResponse)
+async def logout_page(request: Request):
+    """Выход из системы"""
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <title>Выход</title>
+        <script>
+            localStorage.removeItem('token');
+            localStorage.removeItem('username');
+            localStorage.removeItem('role');
+            alert('✅ Вы вышли из системы');
+            window.location.href = '/';
+        </script>
+    </head>
+    <body style="text-align: center; padding: 50px; font-family: Arial;">
+        <p>Выход из системы...</p>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
+
+
+# === ТОЛЬКО ДЛЯ АВТОРОВ И АДМИНОВ ===
 
 @router.get("/create", response_class=HTMLResponse)
 async def create_form(
         request: Request,
-        current_user: TokenData = Depends(require_admin)
+        current_user: AuthenticatedUser = Depends(require_author)
 ):
-    """Форма создания новости - только для админов"""
+    """Форма создания новости - только для авторов и админов"""
     return templates.TemplateResponse("create.html", {
         "request": request,
-        "current_user": current_user  # ← ВАЖНО: передаём пользователя
+        "current_user": current_user
     })
 
 
@@ -113,9 +144,12 @@ async def create_news(
         image_file: Optional[UploadFile] = File(None),
         tags: Optional[str] = Form(""),
         db: Session = Depends(get_db),
-        current_user: TokenData = Depends(require_admin),
+        current_user: AuthenticatedUser = Depends(require_author),
 ):
-    """Создание новости - только для админов"""
+    """Создание новости - только для авторов и админов"""
+    # Для авторов - автоматически используется их имя
+    final_author = author if current_user.role == "admin" else current_user.username
+
     final_image_url = image_url
     if image_file and image_file.filename:
         contents = await image_file.read()
@@ -123,7 +157,7 @@ async def create_news(
 
     news_in = NewsCreate(
         title=title,
-        author=author,
+        author=final_author,
         summary=summary,
         content=content,
         image_url=final_image_url or None,
@@ -139,12 +173,16 @@ async def edit_form(
         request: Request,
         news_id: int,
         db: Session = Depends(get_db),
-        current_user: TokenData = Depends(require_admin),
+        current_user: AuthenticatedUser = Depends(require_author),
 ):
-    """Форма редактирования - только для админов"""
+    """Форма редактирования - авторы могут редактировать только свои новости"""
     news = await news_service.get_by_id(db, news_id)
     if not news:
         raise HTTPException(status_code=404, detail="Новость не найдена")
+
+    # Проверяем права доступа
+    if current_user.role == "author" and news.author != current_user.username:
+        raise HTTPException(status_code=403, detail="Вы можете редактировать только свои новости")
 
     tags_str = ", ".join(news.tags) if news.tags else ""
 
@@ -152,7 +190,7 @@ async def edit_form(
         "request": request,
         "news": news,
         "tags_str": tags_str,
-        "current_user": current_user,  # ← ВАЖНО: передаём пользователя
+        "current_user": current_user,
     })
 
 
@@ -167,9 +205,20 @@ async def update_news(
         image_file: Optional[UploadFile] = File(None),
         tags: Optional[str] = Form(""),
         db: Session = Depends(get_db),
-        current_user: TokenData = Depends(require_admin),
+        current_user: AuthenticatedUser = Depends(require_author),
 ):
-    """Обновление новости - только для админов"""
+    """Обновление новости"""
+    news = await news_service.get_by_id(db, news_id)
+    if not news:
+        raise HTTPException(status_code=404, detail="Новость не найдена")
+
+    # Проверяем права доступа
+    if current_user.role == "author" and news.author != current_user.username:
+        raise HTTPException(status_code=403, detail="Вы можете редактировать только свои новости")
+
+    # Для авторов - используется их имя
+    final_author = author if current_user.role == "admin" else current_user.username
+
     final_image_url = image_url
     if image_file and image_file.filename:
         contents = await image_file.read()
@@ -177,7 +226,7 @@ async def update_news(
 
     news_update = NewsUpdate(
         title=title,
-        author=author,
+        author=final_author,
         summary=summary,
         content=content,
         image_url=final_image_url or None,
@@ -191,48 +240,16 @@ async def update_news(
     return RedirectResponse(url=f"/news/{news_id}", status_code=303)
 
 
+# === ТОЛЬКО ДЛЯ АДМИНИСТРАТОРОВ ===
+
 @router.post("/delete/{news_id}")
 async def delete_news(
         news_id: int,
         db: Session = Depends(get_db),
-        current_user: TokenData = Depends(require_admin),
+        current_user: AuthenticatedUser = Depends(require_admin),
 ):
     """Удаление новости - только для админов"""
     success = await news_service.delete(db, news_id)
     if not success:
         raise HTTPException(status_code=404, detail="Новость не найдена")
     return RedirectResponse(url="/", status_code=303)
-
-
-# === СТРАНИЦА ЛОГИНА ===
-@router.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request):
-    """Страница авторизации"""
-    return templates.TemplateResponse("login.html", {"request": request})
-
-
-# === ВЫХОД ИЗ СИСТЕМЫ ===
-@router.get("/logout", response_class=HTMLResponse)
-async def logout_page(request: Request):
-    """Страница выхода из системы"""
-    html_content = """
-    <!DOCTYPE html>
-    <html lang="ru">
-    <head>
-        <meta charset="UTF-8">
-        <title>Выход</title>
-        <script>
-            localStorage.removeItem('token');
-            localStorage.removeItem('username');
-            alert('✅ Вы вышли из системы');
-            window.location.href = '/';
-        </script>
-    </head>
-    <body>
-        <p style="text-align: center; padding: 50px; font-family: Arial;">
-            Выход из системы...
-        </p>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)

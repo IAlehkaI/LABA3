@@ -1,4 +1,4 @@
-# app/core/security.py — ФИНАЛЬНАЯ ВЕРСИЯ С АНОНИМНЫМИ ПОЛЬЗОВАТЕЛЯМИ
+# app/core/security.py — ПОЛНАЯ СИСТЕМА РОЛЕЙ
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
@@ -13,8 +13,6 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 часа
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# HTTPBearer вместо OAuth2PasswordBearer (не выбрасывает 401 автоматически)
 security = HTTPBearer(auto_error=False)
 
 
@@ -47,25 +45,29 @@ def decode_access_token(token: str) -> Optional[dict]:
 
 
 # === МОДЕЛИ ПОЛЬЗОВАТЕЛЕЙ ===
-class TokenData(BaseModel):
-    username: str
-    is_admin: bool = False
-    role: str = "user"
-
-
 class AnonymousUser(BaseModel):
+    """Анонимный пользователь (без авторизации)"""
     username: str = "anonymous"
-    is_admin: bool = False
     role: str = "anonymous"
+    is_authenticated: bool = False
 
 
-# === ПОЛУЧЕНИЕ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ (С ПОДДЕРЖКОЙ АНОНИМОВ) ===
+class AuthenticatedUser(BaseModel):
+    """Авторизованный пользователь (reader, author, admin)"""
+    username: str
+    role: str  # reader, author, admin
+    is_authenticated: bool = True
+    user_id: int = None
+
+
+# === ПОЛУЧЕНИЕ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ ===
+
 async def get_current_user_optional(
         credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
-) -> TokenData | AnonymousUser:
+) -> Optional[AuthenticatedUser | AnonymousUser]:
     """
-    Возвращает пользователя из токена или анонимного пользователя.
-    НЕ выбрасывает ошибку 401 - разрешает анонимный доступ.
+    Возвращает пользователя из токена или AnonymousUser.
+    РАЗРЕШАЕТ АНОНИМНЫЙ ДОСТУП - не выбрасывает ошибку 401
     """
     if not credentials:
         return AnonymousUser()
@@ -77,21 +79,22 @@ async def get_current_user_optional(
         return AnonymousUser()
 
     username = payload.get("sub")
-    is_admin = payload.get("is_admin", False)
+    role = payload.get("role", "reader")
+    user_id = payload.get("user_id")
 
     if not username:
         return AnonymousUser()
 
-    return TokenData(
+    return AuthenticatedUser(
         username=username,
-        is_admin=is_admin,
-        role="admin" if is_admin else "user"
+        role=role,
+        user_id=user_id
     )
 
 
 async def get_current_user(
         credentials: HTTPAuthorizationCredentials = Depends(security)
-) -> TokenData:
+) -> AuthenticatedUser:
     """
     ТРЕБУЕТ авторизации. Выбрасывает 401 если токена нет.
     Используйте для защищённых эндпоинтов.
@@ -99,7 +102,7 @@ async def get_current_user(
     if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
+            detail="Требуется авторизация",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -109,38 +112,55 @@ async def get_current_user(
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
+            detail="Невалидный токен",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
     username = payload.get("sub")
-    is_admin = payload.get("is_admin", False)
+    role = payload.get("role", "reader")
+    user_id = payload.get("user_id")
 
     if not username:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
+            detail="Невалидный токен",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return TokenData(
+    return AuthenticatedUser(
         username=username,
-        is_admin=is_admin,
-        role="admin" if is_admin else "user"
+        role=role,
+        user_id=user_id
     )
 
 
 # === ПРОВЕРКА РОЛЕЙ ===
-def require_admin(user: TokenData = Depends(get_current_user)) -> TokenData:
-    """Требует роль администратора"""
-    if not user.is_admin:
+
+def require_reader(user: AuthenticatedUser = Depends(get_current_user)) -> AuthenticatedUser:
+    """Требует минимум роль reader (reader, author, admin)"""
+    if user.role not in ["reader", "author", "admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Недостаточно прав. Требуется роль администратора."
+            detail="Требуется авторизация"
         )
     return user
 
 
-def require_authenticated(user: TokenData = Depends(get_current_user)) -> TokenData:
-    """Требует любого авторизованного пользователя (не анонима)"""
+def require_author(user: AuthenticatedUser = Depends(get_current_user)) -> AuthenticatedUser:
+    """Требует минимум роль author (author, admin)"""
+    if user.role not in ["author", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Требуется роль автора или администратора"
+        )
+    return user
+
+
+def require_admin(user: AuthenticatedUser = Depends(get_current_user)) -> AuthenticatedUser:
+    """Требует роль admin"""
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Требуется роль администратора"
+        )
     return user

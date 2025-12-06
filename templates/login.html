@@ -24,7 +24,7 @@
             border-radius: 15px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
             width: 100%;
-            max-width: 400px;
+            max-width: 450px;
         }
         .login-header {
             text-align: center;
@@ -98,19 +98,34 @@
             color: #3c3;
             border: 1px solid #cfc;
         }
-        .demo-credentials {
-            margin-top: 20px;
-            padding: 15px;
+        .test-credentials {
+            margin-top: 25px;
+            padding: 20px;
             background: #f8f9fa;
             border-radius: 8px;
             font-size: 13px;
         }
-        .demo-credentials p {
-            margin: 5px 0;
-            color: #666;
-        }
-        .demo-credentials strong {
+        .test-credentials h3 {
             color: #333;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        .cred-item {
+            margin-bottom: 12px;
+            padding: 10px;
+            background: white;
+            border-left: 3px solid #667eea;
+            border-radius: 4px;
+        }
+        .cred-role {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 12px;
+        }
+        .cred-data {
+            color: #666;
+            font-size: 12px;
+            margin-top: 4px;
         }
         .back-link {
             text-align: center;
@@ -151,10 +166,34 @@
             </button>
         </form>
 
-        <div class="demo-credentials">
-            <p><strong>Тестовые данные:</strong></p>
-            <p>👤 Логин: <strong>admin</strong></p>
-            <p>🔑 Пароль: <strong>admin</strong></p>
+        <div class="test-credentials">
+            <h3>📋 Тестовые аккаунты:</h3>
+
+            <div class="cred-item">
+                <div class="cred-role">👑 АДМИНИСТРАТОР</div>
+                <div class="cred-data">Логин: <strong>admin</strong></div>
+                <div class="cred-data">Пароль: <strong>admin</strong></div>
+                <div class="cred-data">Доступ: полный функционал</div>
+            </div>
+
+            <div class="cred-item">
+                <div class="cred-role">✍️ АВТОР</div>
+                <div class="cred-data">Логин: <strong>author</strong></div>
+                <div class="cred-data">Пароль: <strong>author123</strong></div>
+                <div class="cred-data">Доступ: создание и редактирование своих статей</div>
+            </div>
+
+            <div class="cred-item">
+                <div class="cred-role">👤 ЧИТАТЕЛЬ</div>
+                <div class="cred-data">Логин: <strong>reader</strong></div>
+                <div class="cred-data">Пароль: <strong>reader123</strong></div>
+                <div class="cred-data">Доступ: только чтение статей</div>
+            </div>
+
+            <div class="cred-item">
+                <div class="cred-role">🌐 АНОНИМНЫЙ</div>
+                <div class="cred-data">Доступ: чтение без авторизации</div>
+            </div>
         </div>
 
         <div class="back-link">
@@ -196,13 +235,13 @@
                 if (response.ok) {
                     const data = await response.json();
 
-                    // Сохраняем токен в localStorage
+                    // Сохраняем токен, имя и роль
                     localStorage.setItem('token', data.access_token);
-                    localStorage.setItem('username', username);
+                    localStorage.setItem('username', data.username);
+                    localStorage.setItem('role', data.role);
 
-                    showAlert('✅ Вход выполнен успешно! Перенаправление...', 'success');
+                    showAlert(`✅ Добро пожаловать, ${data.username}!`, 'success');
 
-                    // Перенаправляем на главную через 1 секунду
                     setTimeout(() => {
                         window.location.href = '/';
                     }, 1000);

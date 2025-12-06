@@ -8,20 +8,47 @@ from app.models.news import News
 from app.models.user import User
 from app.core.security import get_password_hash
 
+
 def load_initial_data():
     db = SessionLocal()
 
-    # === Создаём админа, если его ещё нет ===
+    # === Создаём пользователей, если их нет ===
+
+    # Администратор
     if not db.query(User).filter(User.username == "admin").first():
         admin = User(
             username="admin",
             email="admin@news.ru",
             hashed_password=get_password_hash("admin"),
-            is_admin=True
+            role="admin"
         )
         db.add(admin)
         db.commit()
-        print("Создан админ: admin / admin")
+        print("✅ Создан админ: admin / admin (role=admin)")
+
+    # Автор
+    if not db.query(User).filter(User.username == "author").first():
+        author = User(
+            username="author",
+            email="author@news.ru",
+            hashed_password=get_password_hash("author123"),
+            role="author"
+        )
+        db.add(author)
+        db.commit()
+        print("✅ Создан автор: author / author123 (role=author)")
+
+    # Обычный читатель
+    if not db.query(User).filter(User.username == "reader").first():
+        reader = User(
+            username="reader",
+            email="reader@news.ru",
+            hashed_password=get_password_hash("reader123"),
+            role="reader"
+        )
+        db.add(reader)
+        db.commit()
+        print("✅ Создан читатель: reader / reader123 (role=reader)")
 
     # === Загружаем новости, если их нет ===
     if db.query(News).count() == 0:
@@ -33,7 +60,7 @@ def load_initial_data():
                 news = News(**item)
                 db.add(news)
             db.commit()
-            print(f"Загружено {len(data)} начальных новостей")
+            print(f"✅ Загружено {len(data)} начальных новостей")
         else:
             print("initial_news.json не найден — новости не загружены")
 

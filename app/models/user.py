@@ -1,6 +1,8 @@
 # app/models/user.py
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from datetime import datetime
 from app.db.base import Base
+
 
 class User(Base):
     __tablename__ = "users"
@@ -9,4 +11,11 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    is_admin = Column(Boolean, default=False)
+    role = Column(String, default="reader")  # anonymous, reader, author, admin
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Для совместимости со старым кодом
+    @property
+    def is_admin(self):
+        return self.role == "admin"
