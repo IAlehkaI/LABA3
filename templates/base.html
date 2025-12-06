@@ -23,8 +23,6 @@
         }
     </script>
     <style>
-        .dropdown-menu { display: none; }
-        .dropdown:hover .dropdown-menu { display: block; }
         .role-badge {
             display: inline-block;
             padding: 2px 8px;
@@ -41,6 +39,14 @@
 <body class="bg-primary min-h-screen flex flex-col">
     <header class="bg-white shadow-sm border-b border-gray-200">
         <div class="container mx-auto px-4 py-4 max-w-4xl flex items-center justify-between">
+            <!-- Иконка профиля слева -->
+            <div id="profile-icon" style="visibility: hidden;">
+                <a href="/profile" class="flex items-center justify-center w-10 h-10 bg-accent text-white rounded-full hover:bg-blue-700 transition" title="Профиль">
+                    <span class="text-xl">👤</span>
+                </a>
+            </div>
+
+            <!-- Логотип в центре -->
             {% if request.url.path == '/' %}
                 <div class="flex-1 text-center">
                     <a href="/" class="inline-block">
@@ -48,15 +54,14 @@
                     </a>
                 </div>
             {% else %}
-                <div>
+                <div class="flex-1 text-center">
                     <a href="/" class="inline-block">
                         <span class="text-3xl font-logo text-accent">Новостник</span>
                     </a>
                 </div>
-                <div class="flex-1"></div>
             {% endif %}
 
-            <!-- Меню пользователя -->
+            <!-- Меню пользователя справа -->
             <div class="flex items-center gap-3">
                 <div id="user-menu" class="flex items-center gap-3">
                     <a href="/login"
@@ -72,7 +77,6 @@
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Управление контентом для авторов/админов -->
     <div id="content-controls"></div>
 
     <script>
@@ -91,6 +95,7 @@
             const username = localStorage.getItem('username');
             const role = localStorage.getItem('role');
             const userMenu = document.getElementById('user-menu');
+            const profileIcon = document.getElementById('profile-icon');
             const contentControls = document.getElementById('content-controls');
 
             if (!token || !username) {
@@ -100,6 +105,7 @@
                         Войти
                     </a>
                 `;
+                profileIcon.style.visibility = 'hidden';
                 return;
             }
 
@@ -113,37 +119,16 @@
                     return;
                 }
 
-                window.currentUser = {
-                    username: username,
-                    role: role,
-                    token: token
-                };
+                window.currentUser = { username, role, token };
 
-                // Иконка по роли
-                const roleIcons = {
-                    admin: '👑',
-                    author: '✍️',
-                    reader: '👤'
-                };
-
-                const roleLabels = {
-                    admin: 'АДМИНИСТРАТОР',
-                    author: 'АВТОР',
-                    reader: 'ЧИТАТЕЛЬ'
-                };
-
-                const roleClasses = {
-                    admin: 'role-admin',
-                    author: 'role-author',
-                    reader: 'role-reader'
-                };
+                const roleIcons = { admin: '👑', author: '✍️', reader: '👤' };
+                const roleLabels = { admin: 'АДМИНИСТРАТОР', author: 'АВТОР', reader: 'ЧИТАТЕЛЬ' };
+                const roleClasses = { admin: 'role-admin', author: 'role-author', reader: 'role-reader' };
 
                 userMenu.innerHTML = `
                     <span class="text-sm text-gray-700 font-medium">
                         ${roleIcons[role] || '👤'} ${username}
-                        <span class="role-badge ${roleClasses[role]}">
-                            ${roleLabels[role]}
-                        </span>
+                        <span class="role-badge ${roleClasses[role]}">${roleLabels[role]}</span>
                     </span>
                     <button onclick="logout()"
                             class="px-3 py-2 text-sm text-white bg-red-500 hover:bg-red-600 rounded transition">
@@ -151,14 +136,17 @@
                     </button>
                 `;
 
-                // Показываем кнопку "+" для авторов и админов
+                // Показываем иконку профиля если НЕ на странице профиля
+                if (window.location.pathname !== '/profile') {
+                    profileIcon.style.visibility = 'visible';
+                }
+
+                // Кнопка "+" для авторов и админов
                 if ((role === 'author' || role === 'admin') && window.location.pathname === '/') {
                     contentControls.innerHTML = `
                         <a href="/create"
                            class="fixed bottom-6 right-6 bg-accent text-white w-14 h-14 rounded-full shadow-2xl hover:bg-blue-700 transition transform hover:scale-110 z-50 flex items-center justify-center text-3xl font-bold"
-                           title="Создать новую статью">
-                            +
-                        </a>
+                           title="Создать новую статью">+</a>
                     `;
                 }
 

@@ -69,22 +69,34 @@ async def home(
 
 @router.get("/news/{news_id}", response_class=HTMLResponse)
 async def news_detail(
-        request: Request,
-        news_id: int,
-        db: Session = Depends(get_db),
-        current_user: Union[AuthenticatedUser, AnonymousUser] = Depends(get_current_user_optional)
+    request: Request,
+    news_id: int,
+    db: Session = Depends(get_db),
+    current_user: Union[AuthenticatedUser, AnonymousUser] = Depends(get_current_user_optional)
 ):
     """Детали новости - доступны всем"""
     news = await news_service.get_by_id(db, news_id)
     if not news:
         raise HTTPException(status_code=404, detail="Новость не найдена")
 
+    # Отслеживаем прочтение для авторизованных пользователей
+    if current_user.is_authenticated:
+        from app.models.user import User
+        user = db.query(User).filter(User.id == current_user.user_id).first()
+        if user:
+            if not user.read_history:
+                user.read_history = []
+            if news_id not in user.read_history:
+                user.read_history.append(news_id)
+                if len(user.read_history) > 100:
+                    user.read_history = user.read_history[-100:]
+                db.commit()
+
     return templates.TemplateResponse("news_detail.html", {
         "request": request,
         "news": news,
         "current_user": current_user,
     })
-
 
 # === СТРАНИЦЫ АВТОРИЗАЦИИ ===
 
@@ -241,6 +253,10 @@ async def update_news(
 
 
 # === ТОЛЬКО ДЛЯ АДМИНИСТРАТОРОВ ===
+@router.get("/register", response_class=HTMLResponse)
+async def register_page(request: Request):
+    """Страница регистрации"""
+    return templates.TemplateResponse("register.html", {"request": request})
 
 @router.post("/delete/{news_id}")
 async def delete_news(
@@ -253,3 +269,73 @@ async def delete_news(
     if not success:
         raise HTTPException(status_code=404, detail="Новость не найдена")
     return RedirectResponse(url="/", status_code=303)
+
+
+# === ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ ===
+
+@router.get("/profile", response_class=HTMLResponse)
+async def profile_page(
+        request: Request,
+        db: Session = Depends(get_db),
+        current_user: AuthenticatedUser = Depends(get_current_user)
+):
+    """Страница профиля пользователя"""
+    from app.models.user import User
+
+    # Получаем полные данные пользователя из БД
+    user = db.query(User).filter(User.id == current_user.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+    # Получаем историю прочитанных новостей
+    read_news = []
+    if user.read_history and len(user.read_history) > 0:
+        news_ids = user.read_history[-20:]  # Последние 20
+        from app.models.news import News
+        read_news = db.query(News).filter(News.id.in_(news_ids)).all()
+        read_news.reverse()  # От новых к старым
+
+    # Для авторов - получаем их статьи
+    author_articles = []
+    if user.role in ["author", "admin"]:
+        from app.models.news import News
+        if user.role == "author":
+            author_articles = db.query(News).filter(News.author == user.username).order_by(News.created_at.desc()).all()
+        else:
+            author_articles = db.query(News).order_by(News.created_at.desc()).limit(10).all()
+
+    return templates.TemplateResponse("profile.html", {
+        "request": request,
+        "current_user": current_user,
+        "user": user,
+        "read_news": read_news,
+        "author_articles": author_articles
+    })
+
+
+@router.post("/track-read/{news_id}")
+async def track_read(
+        news_id: int,
+        db: Session = Depends(get_db),
+        current_user: AuthenticatedUser = Depends(get_current_user)
+):
+    """Отслеживание прочитанной новости"""
+    from app.models.user import User
+
+    user = db.query(User).filter(User.id == current_user.user_id).first()
+    if not user:
+        return {"status": "error"}
+
+    # Добавляем в историю, если ещё не добавлено
+    if not user.read_history:
+        user.read_history = []
+
+    if news_id not in user.read_history:
+        user.read_history.append(news_id)
+        # Ограничиваем историю 100 последними новостями
+        if len(user.read_history) > 100:
+            user.read_history = user.read_history[-100:]
+
+        db.commit()
+
+    return {"status": "ok"}

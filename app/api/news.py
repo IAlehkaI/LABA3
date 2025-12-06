@@ -1,4 +1,4 @@
-# app/api/news.py — ОБНОВЛЁННАЯ ВЕРСИЯ С ПОДДЕРЖКОЙ АНОНИМОВ
+# app/api/news.py — ОБНОВЛЁННАЯ ВЕРСИЯ С НОВЫМИ ИМПОРТАМИ
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional, Union
@@ -8,7 +8,7 @@ from app.db.session import get_db
 from app.core.security import (
     get_current_user_optional,
     require_admin,
-    TokenData,
+    AuthenticatedUser,  # ← ИЗМЕНЕНО с TokenData
     AnonymousUser
 )
 
@@ -20,7 +20,7 @@ router = APIRouter()
 @router.get("/", response_model=List[NewsResponse])
 async def get_all_news(
         db: Session = Depends(get_db),
-        current_user: Union[TokenData, AnonymousUser] = Depends(get_current_user_optional)
+        current_user: Union[AuthenticatedUser, AnonymousUser] = Depends(get_current_user_optional)
 ):
     """
     Получить все новости.
@@ -33,7 +33,7 @@ async def get_all_news(
 async def search_news(
         q: str,
         db: Session = Depends(get_db),
-        current_user: Union[TokenData, AnonymousUser] = Depends(get_current_user_optional)
+        current_user: Union[AuthenticatedUser, AnonymousUser] = Depends(get_current_user_optional)
 ):
     """
     Поиск новостей по запросу.
@@ -46,7 +46,7 @@ async def search_news(
 async def get_news_by_id(
         news_id: int,
         db: Session = Depends(get_db),
-        current_user: Union[TokenData, AnonymousUser] = Depends(get_current_user_optional)
+        current_user: Union[AuthenticatedUser, AnonymousUser] = Depends(get_current_user_optional)
 ):
     """
     Получить новость по ID.
@@ -67,7 +67,7 @@ async def get_news_by_id(
 async def create_news(
         news_in: NewsCreate,
         db: Session = Depends(get_db),
-        current_user: TokenData = Depends(require_admin)
+        current_user: AuthenticatedUser = Depends(require_admin)
 ):
     """
     Создать новую новость.
@@ -81,7 +81,7 @@ async def update_news(
         news_id: int,
         news_update: NewsUpdate,
         db: Session = Depends(get_db),
-        current_user: TokenData = Depends(require_admin)
+        current_user: AuthenticatedUser = Depends(require_admin)
 ):
     """
     Обновить существующую новость.
@@ -102,7 +102,7 @@ async def update_news(
 async def delete_news(
         news_id: int,
         db: Session = Depends(get_db),
-        current_user: TokenData = Depends(require_admin)
+        current_user: AuthenticatedUser = Depends(require_admin)
 ):
     """
     Удалить новость.
@@ -121,7 +121,7 @@ async def delete_news(
 async def get_news_by_tag(
         tag: str,
         db: Session = Depends(get_db),
-        current_user: Union[TokenData, AnonymousUser] = Depends(get_current_user_optional)
+        current_user: Union[AuthenticatedUser, AnonymousUser] = Depends(get_current_user_optional)
 ):
     """
     Получить новости по тегу.

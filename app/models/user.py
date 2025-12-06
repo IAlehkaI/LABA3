@@ -1,6 +1,9 @@
 # app/models/user.py
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from datetime import datetime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, JSON
+from sqlalchemy.orm import relationship
+from datetime import datetime
 from app.db.base import Base
 
 
@@ -14,8 +17,8 @@ class User(Base):
     role = Column(String, default="reader")  # anonymous, reader, author, admin
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    read_history = Column(JSON, default=list)  # Список ID прочитанных новостей
 
-    # Для совместимости со старым кодом
     @property
     def is_admin(self):
         return self.role == "admin"
