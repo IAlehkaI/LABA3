@@ -1,15 +1,16 @@
-# app/crud/news.py — ИСПРАВЛЕННАЯ ВЕРСИЯ
+# app/crud/news.py — АСИНХРОННАЯ ВЕРСИЯ
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from app.models.news import News
 from app.schemas.news import NewsCreate, NewsUpdate
-from typing import Optional
+from typing import Optional, List
 
 
-def create(db: Session, news_in: NewsCreate) -> News:
+async def create(db: Session, news_in: NewsCreate) -> News:
     """Создание новости"""
     db_news = News(
         title=news_in.title,
-        image_url=str(news_in.image_url) if news_in.image_url else None,  # Конвертируем в строку
+        image_url=str(news_in.image_url) if news_in.image_url else None,
         author=news_in.author,
         summary=news_in.summary,
         content=news_in.content,
@@ -21,17 +22,17 @@ def create(db: Session, news_in: NewsCreate) -> News:
     return db_news
 
 
-def get_all(db: Session):
+async def get_all(db: Session) -> List[News]:
     """Получить все новости"""
     return db.query(News).all()
 
 
-def get_by_id(db: Session, news_id: int) -> Optional[News]:
+async def get_by_id(db: Session, news_id: int) -> Optional[News]:
     """Получить новость по ID"""
     return db.query(News).filter(News.id == news_id).first()
 
 
-def search(db: Session, query: str):
+async def search(db: Session, query: str) -> List[News]:
     """Поиск новостей"""
     search_pattern = f"%{query}%"
     return db.query(News).filter(
@@ -41,7 +42,7 @@ def search(db: Session, query: str):
     ).all()
 
 
-def update(db: Session, news_id: int, news_in: NewsUpdate) -> bool:
+async def update(db: Session, news_id: int, news_in: NewsUpdate) -> bool:
     """Обновление новости"""
     db_news = db.query(News).filter(News.id == news_id).first()
     if not db_news:
@@ -61,7 +62,7 @@ def update(db: Session, news_id: int, news_in: NewsUpdate) -> bool:
     return True
 
 
-def delete(db: Session, news_id: int) -> bool:
+async def delete(db: Session, news_id: int) -> bool:
     """Удаление новости"""
     db_news = db.query(News).filter(News.id == news_id).first()
     if not db_news:
