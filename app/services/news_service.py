@@ -10,7 +10,7 @@ from app.crud.news import (
 )
 from app.schemas.news import NewsCreate, NewsUpdate, NewsResponse
 from app.models.news import News as NewsModel
-from app.core.redis import redis_client  # будет ниже, если ещё не создал
+from app.core.redis import redis_client
 
 
 class NewsService:
@@ -21,6 +21,13 @@ class NewsService:
         """Простая генерация ключа для Redis"""
         return f"news:{prefix}:{':'.join(map(str, args))}"
 
+    def _serialize_news(self, news_list: List[NewsResponse]) -> str:
+        """Сериализация списка новостей в JSON с поддержкой Pydantic v2"""
+        return json.dumps(
+            [item.model_dump(mode='json') for item in news_list],  # ← Pydantic v2
+            ensure_ascii=False
+        )
+
     async def get_all(self, db: Session) -> List[NewsResponse]:
         """Все новости с кэшем"""
         cache_key = await self._cache_key("all")
@@ -30,33 +37,33 @@ class NewsService:
             return [NewsResponse(**item) for item in raw_list]
 
         db_news = await get_all(db)
-        result = [NewsResponse.from_orm(n) for n in db_news]
+        result = [NewsResponse.model_validate(n) for n in db_news]  # ← Pydantic v2
 
         # Сохраняем в кэш
         await redis_client.setex(
             cache_key,
             self.CACHE_TTL,
-            json.dumps([r.dict() for r in result], ensure_ascii=False)
+            self._serialize_news(result)
         )
         return result
 
     async def get_by_id(self, db: Session, news_id: int) -> Optional[NewsResponse]:
-        """Получаем одну новость — без кэша (редко меняется, но и не часто читается)"""
+        """Получаем одну новость — без кэша"""
         db_news = await get_by_id(db, news_id)
-        return NewsResponse.from_orm(db_news) if db_news else None
+        return NewsResponse.model_validate(db_news) if db_news else None  # ← Pydantic v2
 
     async def create(self, db: Session, news_in: NewsCreate) -> NewsResponse:
         """Создаём новость и сразу чистим кэш списка"""
         db_news = await create(db, news_in)
-        await self._invalidate_cache()  # чистим всё связанное со списком
-        return NewsResponse.from_orm(db_news)
+        await self._invalidate_cache()
+        return NewsResponse.model_validate(db_news)  # ← Pydantic v2
 
     async def update(self, db: Session, news_id: int, news_in: NewsUpdate) -> Optional[NewsResponse]:
         """Обновляем + инвалидируем кэш"""
         db_news = await update(db, news_id, news_in)
         if db_news:
             await self._invalidate_cache()
-            return NewsResponse.from_orm(db_news)
+            return NewsResponse.model_validate(db_news)  # ← Pydantic v2
         return None
 
     async def delete(self, db: Session, news_id: int) -> bool:
@@ -78,12 +85,12 @@ class NewsService:
             return [NewsResponse(**item) for item in raw_list]
 
         db_news = await search(db, query)
-        result = [NewsResponse.from_orm(n) for n in db_news]
+        result = [NewsResponse.model_validate(n) for n in db_news]  # ← Pydantic v2
 
         await redis_client.setex(
             cache_key,
             self.CACHE_TTL,
-            json.dumps([r.dict() for r in result], ensure_ascii=False)
+            self._serialize_news(result)
         )
         return result
 

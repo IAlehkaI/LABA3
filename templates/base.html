@@ -46,7 +46,21 @@
                 </div>
                 <div class="flex-1"></div>
             {% endif %}
-            <div></div>
+
+            <!-- Меню пользователя -->
+            <div class="flex items-center gap-4">
+                {% if current_user and current_user.username != 'anonymous' %}
+                    <span class="text-sm text-gray-600">
+                        👤 {{ current_user.username }}
+                        {% if current_user.is_admin %}
+                            <span class="ml-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">admin</span>
+                        {% endif %}
+                    </span>
+                    <a href="/logout" class="text-sm text-red-600 hover:text-red-800">Выйти</a>
+                {% else %}
+                    <a href="/login" class="text-sm text-accent hover:text-blue-800 font-medium">Войти</a>
+                {% endif %}
+            </div>
         </div>
     </header>
 
@@ -55,7 +69,7 @@
     </main>
 
     <!-- Кнопка "+" только для админа и только на главной -->
-    {% if current_user and current_user  current_user.role == 'admin' and request.url.path == '/' %}
+    {% if current_user and current_user.role == 'admin' and request.url.path == '/' %}
     <a href="/create"
        class="fixed bottom-6 right-6 bg-accent text-white p-4 rounded-full shadow-2xl hover:bg-blue-700 transition transform hover:scale-110 z-50 text-2xl font-bold">
         +
