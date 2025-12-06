@@ -3,51 +3,59 @@
 from fastapi import APIRouter, Request, Form, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
 from app.schemas.news import NewsCreate, NewsUpdate
 from app.services.news_service import news_service
-from app.core.security import get_current_user, require_role
-from app.core.roles import Role
-from app.utils.s3 import upload_image_to_s3  # если используешь загрузку файлов
-from typing import Optional
+from app.db.session import get_db  # ← ДОБАВЬТЕ ЭТО!
+from app.core.security import (
+    get_current_user_optional,
+    require_admin,
+    TokenData,
+    AnonymousUser
+)
+from app.utils.s3 import upload_image_to_s3
+from typing import Optional, Union
 from app.api.auth import router as auth_router
 from app.api.news import router as news_router
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
-
-templates = Jinja2Templates(directory="templates")
-router = APIRouter()
-
-@router.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request):
-    """Страница авторизации"""
-    return templates.TemplateResponse("login.html", {"request": request})
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
-router.include_router(auth_router)      # ← авторизация
-router.include_router(news_router, prefix="/news", tags=["news"])  # ← новости
+router.include_router(auth_router)
+router.include_router(news_router, prefix="/news", tags=["news"])
+
 # Хелпер для красивой даты в шаблонах
-def format_date(iso_string: str) -> str:
+# Хелпер для красивой даты в шаблонах
+def format_date(dt_obj) -> str:
+    """Форматирование datetime объекта в красивую строку"""
     from datetime import datetime
-    dt = datetime.fromisoformat(iso_string.replace("Z", "+00:00"))
+
+    # Если пришла строка - парсим
+    if isinstance(dt_obj, str):
+        dt = datetime.fromisoformat(dt_obj.replace("Z", "+00:00"))
+    # Если уже datetime - используем как есть
+    else:
+        dt = dt_obj
+
     months = ["", "января", "февраля", "марта", "апреля", "мая", "июня",
               "июля", "августа", "сентября", "октября", "ноября", "декабря"]
     return f"{dt.day} {months[dt.month]} {dt.year} г."
 
+
 templates.env.globals["format_date"] = format_date
 
 
-# === ВЕБ-ЧАСТЬ (HTML + Tailwind) ===
+# === ВЕБ-ЧАСТЬ (ДОСТУПНА АНОНИМАМ) ===
 
 @router.get("/", response_class=HTMLResponse)
 async def home(
     request: Request,
     q: Optional[str] = None,
-    current_user: dict = Depends(get_current_user),  # может быть None — аноним
+    db: Session = Depends(get_db),  # ← ДОБАВЛЕНО
+    current_user: Union[TokenData, AnonymousUser] = Depends(get_current_user_optional),
 ):
+    """Главная страница - доступна всем, включая анонимов"""
     search_query = (q or "").strip()
-    news_list = await news_service.search(search_query) if search_query else await news_service.get_all()
+    news_list = await news_service.search(db, search_query) if search_query else await news_service.get_all(db)
 
     top_news = news_list[:3] if not search_query else []
     news_list = news_list[3:] if not search_query else news_list
@@ -62,8 +70,14 @@ async def home(
 
 
 @router.get("/news/{news_id}", response_class=HTMLResponse)
-async def news_detail(request: Request, news_id: int, current_user: dict = Depends(get_current_user)):
-    news = await news_service.get_by_id(news_id)
+async def news_detail(
+    request: Request,
+    news_id: int,
+    db: Session = Depends(get_db),  # ← ДОБАВЛЕНО
+    current_user: Union[TokenData, AnonymousUser] = Depends(get_current_user_optional)
+):
+    """Детали новости - доступны всем"""
+    news = await news_service.get_by_id(db, news_id)
     if not news:
         raise HTTPException(status_code=404, detail="Новость не найдена")
 
@@ -74,9 +88,18 @@ async def news_detail(request: Request, news_id: int, current_user: dict = Depen
     })
 
 
+# === ТОЛЬКО ДЛЯ АДМИНИСТРАТОРОВ ===
+
 @router.get("/create", response_class=HTMLResponse)
-async def create_form(request: Request, current_user: dict = Depends(require_role(Role.ADMIN))):
-    return templates.TemplateResponse("create.html", {"request": request, "current_user": current_user})
+async def create_form(
+    request: Request,
+    current_user: TokenData = Depends(require_admin)
+):
+    """Форма создания новости - только для админов"""
+    return templates.TemplateResponse("create.html", {
+        "request": request,
+        "current_user": current_user
+    })
 
 
 @router.post("/create")
@@ -89,9 +112,10 @@ async def create_news(
     image_url: Optional[str] = Form(""),
     image_file: Optional[UploadFile] = File(None),
     tags: Optional[str] = Form(""),
-    current_user: dict = Depends(require_role(Role.ADMIN)),
+    db: Session = Depends(get_db),  # ← ДОБАВЛЕНО
+    current_user: TokenData = Depends(require_admin),
 ):
-    # Если загрузили файл — заливаем в S3, иначе берём URL
+    """Создание новости - только для админов"""
     final_image_url = image_url
     if image_file and image_file.filename:
         contents = await image_file.read()
@@ -106,7 +130,7 @@ async def create_news(
         tags=[t.strip() for t in tags.split(",") if t.strip()] if tags else [],
     )
 
-    await news_service.create(news_in)
+    await news_service.create(db, news_in)
     return RedirectResponse(url="/", status_code=303)
 
 
@@ -114,9 +138,11 @@ async def create_news(
 async def edit_form(
     request: Request,
     news_id: int,
-    current_user: dict = Depends(require_role(Role.ADMIN)),
+    db: Session = Depends(get_db),  # ← ДОБАВЛЕНО
+    current_user: TokenData = Depends(require_admin),
 ):
-    news = await news_service.get_by_id(news_id)
+    """Форма редактирования - только для админов"""
+    news = await news_service.get_by_id(db, news_id)
     if not news:
         raise HTTPException(status_code=404, detail="Новость не найдена")
 
@@ -140,8 +166,10 @@ async def update_news(
     image_url: Optional[str] = Form(""),
     image_file: Optional[UploadFile] = File(None),
     tags: Optional[str] = Form(""),
-    current_user: dict = Depends(require_role(Role.ADMIN)),
+    db: Session = Depends(get_db),  # ← ДОБАВЛЕНО
+    current_user: TokenData = Depends(require_admin),
 ):
+    """Обновление новости - только для админов"""
     final_image_url = image_url
     if image_file and image_file.filename:
         contents = await image_file.read()
@@ -156,7 +184,7 @@ async def update_news(
         tags=[t.strip() for t in tags.split(",") if t.strip()] if tags else [],
     )
 
-    success = await news_service.update(news_id, news_update)
+    success = await news_service.update(db, news_id, news_update)
     if not success:
         raise HTTPException(status_code=404, detail="Новость не найдена")
 
@@ -166,13 +194,17 @@ async def update_news(
 @router.post("/delete/{news_id}")
 async def delete_news(
     news_id: int,
-    current_user: dict = Depends(require_role(Role.ADMIN)),
+    db: Session = Depends(get_db),  # ← ДОБАВЛЕНО
+    current_user: TokenData = Depends(require_admin),
 ):
-    success = await news_service.delete(news_id)
+    """Удаление новости - только для админов"""
+    success = await news_service.delete(db, news_id)
     if not success:
         raise HTTPException(status_code=404, detail="Новость не найдена")
     return RedirectResponse(url="/", status_code=303)
 
+
+# === СТРАНИЦА ЛОГИНА ===
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     """Страница авторизации"""

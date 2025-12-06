@@ -15,8 +15,6 @@ from app.core.config import settings
 from app.utils.s3 import s3_client
 from app.api import routes
 
-app.include_router(routes.router)
-
 # Логи
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
