@@ -1,127 +1,264 @@
-{% extends "base.html" %}
-{% block content %}
-<a href="/" class="text-accent hover:underline mb-4 inline-block">← Назад к новостям</a>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ news.title }} - Новостник</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#e6ecf7',
+                        accent: '#2563eb'
+                    },
+                    fontFamily: {
+                        logo: ['Pacifico', 'cursive'],
+                        sans: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .role-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 6px;
+        }
+        .role-admin { background: #fee; color: #c33; }
+        .role-author { background: #fef3cd; color: #856404; }
+        .role-reader { background: #d1ecf1; color: #0c5460; }
+        .prose {
+            line-height: 1.8;
+        }
+        .prose p {
+            margin-bottom: 1.5em;
+        }
+    </style>
+</head>
+<body class="bg-primary min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-gray-200">
+        <div class="container mx-auto px-4 py-4 max-w-4xl flex items-center justify-between">
+            <!-- Иконка профиля слева -->
+            <div id="profile-icon" style="visibility: hidden;">
+                <a href="/profile" class="flex items-center justify-center w-10 h-10 bg-accent text-white rounded-full hover:bg-blue-700 transition" title="Профиль">
+                    <span class="text-xl">👤</span>
+                </a>
+            </div>
 
-<article class="bg-white rounded-lg shadow-md p-8 mb-6">
-    <h1 class="text-4xl font-bold text-gray-800 mb-4">{{ news.title }}</h1>
+            <!-- Логотип в центре -->
+            <div class="flex-1 text-center">
+                <a href="/" class="inline-block">
+                    <span class="text-3xl font-logo text-accent">Новостник</span>
+                </a>
+            </div>
 
-    <div class="flex items-center gap-4 text-sm text-gray-600 mb-6 pb-4 border-b">
-        <span>✍️ <strong>{{ news.author }}</strong></span>
-        <span>📅 {{ format_date(news.created_at) }}</span>
-        {% if news.tags %}
-        <div class="flex gap-2 ml-auto">
-            {% for tag in news.tags %}
-            <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">{{ tag }}</span>
-            {% endfor %}
+            <!-- Меню пользователя справа -->
+            <div class="flex items-center gap-3">
+                <div id="user-menu" class="flex items-center gap-3">
+                    <a href="/login"
+                       class="px-4 py-2 text-sm text-white bg-accent hover:bg-blue-700 rounded font-medium transition">
+                        Войти
+                    </a>
+                </div>
+            </div>
         </div>
-        {% endif %}
+    </header>
+
+    <!-- Контент статьи -->
+    <main class="container mx-auto px-4 py-8 max-w-4xl flex-1">
+        <a href="/" class="text-accent hover:underline mb-4 inline-block">← Назад к новостям</a>
+
+        <article class="bg-white rounded-lg shadow-md p-8 mb-6">
+            <h1 class="text-4xl font-bold text-gray-800 mb-4">{{ news.title }}</h1>
+
+            <div class="flex items-center gap-4 text-sm text-gray-600 mb-6 pb-4 border-b">
+                <span>✍️ <strong>{{ news.author }}</strong></span>
+                <span>📅 {{ format_date(news.created_at) }}</span>
+                {% if news.tags %}
+                <div class="flex gap-2 ml-auto">
+                    {% for tag in news.tags %}
+                    <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            {% if news.image_url %}
+            <img src="{{ news.image_url }}" class="w-full rounded-lg mb-6 shadow-md" alt="{{ news.title }}">
+            {% endif %}
+
+            <div class="prose max-w-none text-gray-800 text-lg leading-relaxed">
+                {{ news.content|replace('\n', '<br>')|safe }}
+            </div>
+        </article>
+    </main>
+
+    <!-- Плавающие кнопки управления -->
+    <div id="article-controls" style="display: none;">
+        <!-- Кнопка редактирования -->
+        <a href="/edit/{{ news.id }}"
+           id="edit-btn"
+           class="fixed bottom-20 right-6 bg-blue-500 hover:bg-blue-600 text-white w-14 h-14 rounded-full shadow-2xl transition transform hover:scale-110 flex items-center justify-center z-50"
+           title="Редактировать статью"
+           style="display: none;">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+        </a>
+
+        <!-- Кнопка удаления -->
+        <button onclick="confirmDelete()"
+                id="delete-btn"
+                class="fixed bottom-6 right-6 bg-red-500 hover:bg-red-600 text-white w-14 h-14 rounded-full shadow-2xl transition transform hover:scale-110 flex items-center justify-center z-50"
+                title="Удалить статью"
+                style="display: none;">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+        </button>
     </div>
 
-    {% if news.image_url %}
-    <img src="{{ news.image_url }}" class="w-full rounded-lg mb-6 shadow-md" alt="{{ news.title }}">
-    {% endif %}
+    <!-- Форма удаления -->
+    <form id="delete-form" method="POST" action="/delete/{{ news.id }}" style="display: none;">
+    </form>
 
-    <div class="prose max-w-none text-gray-800 text-lg leading-relaxed">
-        {{ news.content|replace('\n', '<br>')|safe }}
-    </div>
-</article>
+    <script>
+        const newsAuthor = "{{ news.author }}";
+        const newsId = {{ news.id }};
+        window.currentUser = null;
 
-<!-- Плавающие кнопки управления (только для авторов/админов) -->
-<div id="article-controls" style="display: none;">
-    <!-- Кнопка редактирования -->
-    <a href="/edit/{{ news.id }}"
-       id="edit-btn"
-       class="fixed bottom-20 right-6 bg-blue-500 hover:bg-blue-600 text-white w-14 h-14 rounded-full shadow-2xl transition transform hover:scale-110 flex items-center justify-center z-50"
-       title="Редактировать статью"
-       style="display: none;">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-        </svg>
-    </a>
-
-    <!-- Кнопка удаления (только для админов) -->
-    <button onclick="confirmDelete()"
-            id="delete-btn"
-            class="fixed bottom-6 right-6 bg-red-500 hover:bg-red-600 text-white w-14 h-14 rounded-full shadow-2xl transition transform hover:scale-110 flex items-center justify-center z-50"
-            title="Удалить статью"
-            style="display: none;">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-        </svg>
-    </button>
-</div>
-
-<!-- Форма для удаления (скрытая) -->
-<form id="delete-form" method="POST" action="/delete/{{ news.id }}" style="display: none;">
-</form>
-
-<script>
-    const newsAuthor = "{{ news.author }}";
-    const newsId = {{ news.id }};
-
-    function confirmDelete() {
-        if (confirm('⚠️ Вы уверены, что хотите удалить эту статью? Это действие необратимо!')) {
-            document.getElementById('delete-form').submit();
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('username');
+            localStorage.removeItem('role');
+            document.cookie = 'access_token=; path=/; max-age=0';
+            alert('✅ Вы вышли из системы');
+            window.location.href = '/';
         }
-    }
 
-    function updateArticleControls() {
-        const token = localStorage.getItem('token');
-        const username = localStorage.getItem('username');
-        const role = localStorage.getItem('role');
-
-        if (!token || !username || !role) return;
-
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            const expiry = payload.exp * 1000;
-
-            if (Date.now() > expiry) return;
-
-            const editBtn = document.getElementById('edit-btn');
-            const deleteBtn = document.getElementById('delete-btn');
-            const controls = document.getElementById('article-controls');
-
-            // Админ видит все кнопки для любой статьи
-            if (role === 'admin') {
-                editBtn.style.display = 'flex';
-                deleteBtn.style.display = 'flex';
-                controls.style.display = 'block';
+        function confirmDelete() {
+            if (confirm('⚠️ Вы уверены, что хотите удалить эту статью? Это действие необратимо!')) {
+                document.getElementById('delete-form').submit();
             }
-            // Автор видит кнопку редактирования только для своих статей
-            else if (role === 'author' && username === newsAuthor) {
-                editBtn.style.display = 'flex';
-                controls.style.display = 'block';
+        }
+
+        function updateUserInterface() {
+            const token = localStorage.getItem('token');
+            const username = localStorage.getItem('username');
+            const role = localStorage.getItem('role');
+            const userMenu = document.getElementById('user-menu');
+            const profileIcon = document.getElementById('profile-icon');
+
+            if (!token || !username) {
+                userMenu.innerHTML = `
+                    <a href="/login"
+                       class="px-4 py-2 text-sm text-white bg-accent hover:bg-blue-700 rounded font-medium transition">
+                        Войти
+                    </a>
+                `;
+                profileIcon.style.visibility = 'hidden';
+                return;
             }
 
-        } catch (e) {
-            console.error('Ошибка проверки прав:', e);
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const expiry = payload.exp * 1000;
+
+                if (Date.now() > expiry) {
+                    localStorage.clear();
+                    document.cookie = 'access_token=; path=/; max-age=0';
+                    window.location.reload();
+                    return;
+                }
+
+                document.cookie = `access_token=${token}; path=/; max-age=86400; SameSite=Lax`;
+                window.currentUser = { username, role, token };
+
+                const roleIcons = { admin: '👑', author: '✍️', reader: '👤' };
+                const roleLabels = { admin: 'АДМИНИСТРАТОР', author: 'АВТОР', reader: 'ЧИТАТЕЛЬ' };
+                const roleClasses = { admin: 'role-admin', author: 'role-author', reader: 'role-reader' };
+
+                userMenu.innerHTML = `
+                    <span class="text-sm text-gray-700 font-medium">
+                        ${roleIcons[role] || '👤'} ${username}
+                        <span class="role-badge ${roleClasses[role]}">${roleLabels[role]}</span>
+                    </span>
+                    <button onclick="logout()"
+                            class="px-3 py-2 text-sm text-white bg-red-500 hover:bg-red-600 rounded transition">
+                        Выйти
+                    </button>
+                `;
+
+                profileIcon.style.visibility = 'visible';
+
+            } catch (e) {
+                console.error('Ошибка декодирования токена:', e);
+                localStorage.clear();
+                document.cookie = 'access_token=; path=/; max-age=0';
+                window.location.reload();
+            }
         }
-    }
 
-    // Запускаем при загрузке
-    window.addEventListener('load', updateArticleControls);
+        function updateArticleControls() {
+            const token = localStorage.getItem('token');
+            const username = localStorage.getItem('username');
+            const role = localStorage.getItem('role');
 
-    // Обновляем при изменении данных в localStorage
-    window.addEventListener('storage', updateArticleControls);
+            if (!token || !username || !role) return;
 
-    // Обновляем каждые 100мс в первые 2 секунды
-    let checkCount = 0;
-    const quickCheck = setInterval(() => {
-        updateArticleControls();
-        checkCount++;
-        if (checkCount > 20) {
-            clearInterval(quickCheck);
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const expiry = payload.exp * 1000;
+
+                if (Date.now() > expiry) return;
+
+                const editBtn = document.getElementById('edit-btn');
+                const deleteBtn = document.getElementById('delete-btn');
+                const controls = document.getElementById('article-controls');
+
+                if (role === 'admin') {
+                    editBtn.style.display = 'flex';
+                    deleteBtn.style.display = 'flex';
+                    controls.style.display = 'block';
+                }
+                else if (role === 'author' && username === newsAuthor) {
+                    editBtn.style.display = 'flex';
+                    controls.style.display = 'block';
+                }
+
+            } catch (e) {
+                console.error('Ошибка проверки прав:', e);
+            }
         }
-    }, 100);
-</script>
 
-<style>
-    .prose {
-        line-height: 1.8;
-    }
-    .prose p {
-        margin-bottom: 1.5em;
-    }
-</style>
-{% endblock %}
+        window.addEventListener('load', () => {
+            updateUserInterface();
+            updateArticleControls();
+        });
+
+        window.addEventListener('storage', () => {
+            updateUserInterface();
+            updateArticleControls();
+        });
+
+        // Быстрое обновление UI
+        let checkCount = 0;
+        const quickCheck = setInterval(() => {
+            updateUserInterface();
+            updateArticleControls();
+            checkCount++;
+            if (checkCount > 20) {
+                clearInterval(quickCheck);
+            }
+        }, 100);
+    </script>
+</body>
+</html>

@@ -31,7 +31,7 @@
   <div>
     <label class="block text-gray-700 mb-1">Автор *</label>
     <input type="text" name="author" required minlength="2" maxlength="100"
-           class="w-full p-2 border rounded"
+           class="w-full p-2 border rounded {% if current_user.role != 'admin' %}bg-gray-100{% endif %}"
            value="{{ news.author }}"
            {% if current_user.role != 'admin' %}readonly{% endif %}>
   </div>
@@ -69,13 +69,32 @@
            value="{{ news.tags|join(', ') if news.tags else '' }}">
   </div>
 
-  <button type="submit"
-          class="bg-accent text-white px-6 py-2 rounded hover:bg-blue-700 transition">
-    Сохранить изменения
-  </button>
+  <!-- Кнопки действий -->
+  <div class="flex gap-3 items-center">
+    <button type="submit"
+            class="bg-accent text-white px-6 py-2 rounded hover:bg-blue-700 transition">
+      💾 Сохранить изменения
+    </button>
+
+    <!-- Кнопка удаления (для автора своей статьи или админа) -->
+    <button type="button"
+            id="delete-btn"
+            onclick="confirmDelete()"
+            class="bg-red-500 text-white px-6 py-2 rounded hover:bg-red-600 transition"
+            style="display: none;">
+      🗑️ Удалить статью
+    </button>
+  </div>
+</form>
+
+<!-- Скрытая форма для удаления -->
+<form id="delete-form" method="POST" action="/delete/{{ news.id }}" style="display: none;">
 </form>
 
 <script>
+  const newsAuthor = "{{ news.author }}";
+  const newsId = {{ news.id }};
+
   function updateCharCount(fieldName, value, min, max) {
     const counter = document.getElementById(`${fieldName}-count`);
     const length = value.length;
@@ -99,6 +118,12 @@
     setTimeout(() => alert.classList.add('hidden'), 5000);
   }
 
+  function confirmDelete() {
+    if (confirm('⚠️ Вы уверены, что хотите удалить эту статью? Это действие необратимо!')) {
+      document.getElementById('delete-form').submit();
+    }
+  }
+
   document.getElementById('editForm').addEventListener('submit', (e) => {
     const summary = document.querySelector('[name="summary"]').value;
     const content = document.querySelector('[name="content"]').value;
@@ -116,8 +141,25 @@
     }
   });
 
-  // Инициализация счётчиков
+  // Проверка прав доступа и отображение кнопки удаления
   window.addEventListener('load', () => {
+    const token = localStorage.getItem('token');
+    const username = localStorage.getItem('username');
+    const role = localStorage.getItem('role');
+    const deleteBtn = document.getElementById('delete-btn');
+
+    if (!token || !username || !role) {
+      alert('❌ Требуется авторизация');
+      window.location.href = '/login';
+      return;
+    }
+
+    // Показываем кнопку удаления для админа или автора своей статьи
+    if (role === 'admin' || (role === 'author' && username === newsAuthor)) {
+      deleteBtn.style.display = 'inline-block';
+    }
+
+    // Инициализация счётчиков
     const summary = document.querySelector('[name="summary"]');
     const content = document.querySelector('[name="content"]');
     updateCharCount('summary', summary.value, 10, 500);
