@@ -1,4 +1,4 @@
-# app/api/routes.py
+# app/api/routes.py - НАЧАЛО ФАЙЛА
 
 from fastapi import APIRouter, Request, Form, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -6,7 +6,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.schemas.news import NewsCreate, NewsUpdate
 from app.services.news_service import news_service
-from app.db.session import get_db  # ← ДОБАВЬТЕ ЭТО!
+from app.db.session import get_db
 from app.core.security import (
     get_current_user_optional,
     require_admin,
@@ -15,16 +15,17 @@ from app.core.security import (
 )
 from app.utils.s3 import upload_image_to_s3
 from typing import Optional, Union
+from datetime import datetime
 from app.api.auth import router as auth_router
 from app.api.news import router as news_router
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
-router.include_router(auth_router)
-router.include_router(news_router, prefix="/news", tags=["news"])
 
-# Хелпер для красивой даты в шаблонах
-# Хелпер для красивой даты в шаблонах
+router.include_router(auth_router)
+router.include_router(news_router, prefix="/api/news", tags=["news"])
+
+
 def format_date(dt_obj) -> str:
     """Форматирование datetime объекта в красивую строку"""
     from datetime import datetime
